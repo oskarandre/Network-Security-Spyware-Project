@@ -16,8 +16,6 @@ text_area.pack(padx=10, pady=10)
 # Create buttons with red theme
 button_style = {'bg': '#ff0000', 'fg': '#ffffff', 'activebackground': '#cc0000', 'activeforeground': '#ffffff'}
 
-start_button = tk.Button(root, text="Start", command=lambda: send_command("start", log_message, root), **button_style)
-start_button.pack(side=tk.LEFT, padx=10, pady=10)
 
 record_button = tk.Button(root, text="Record", command=lambda: start_recording(log_message), **button_style)
 record_button.pack(side=tk.LEFT, padx=10, pady=10)
