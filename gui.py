@@ -2,7 +2,7 @@ import tkinter as tk  # For GUI
 from tkinter import scrolledtext  # For scrollable text area
 import threading  # For running the server in a separate thread
 import signal  # For handling the ctrl+c command when exiting the program
-from server import start_server, send_command, start_streaming, stop_streaming, terminate_server
+from server import start_server, send_command, start_recording, stop_recording, start_streaming, stop_streaming, terminate_server
 
 # Create the main window
 root = tk.Tk()
@@ -18,6 +18,12 @@ button_style = {'bg': '#ff0000', 'fg': '#ffffff', 'activebackground': '#cc0000',
 
 start_button = tk.Button(root, text="Start", command=lambda: send_command("start", log_message, root), **button_style)
 start_button.pack(side=tk.LEFT, padx=10, pady=10)
+
+record_button = tk.Button(root, text="Record", command=lambda: start_recording(log_message), **button_style)
+record_button.pack(side=tk.LEFT, padx=10, pady=10)
+
+stop_record_button = tk.Button(root, text="Stop Recording", command=lambda: stop_recording(log_message), **button_style)
+stop_record_button.pack(side=tk.LEFT, padx=10, pady=10)
 
 stream_button = tk.Button(root, text="Stream", command=lambda: start_streaming(log_message), **button_style)
 stream_button.pack(side=tk.LEFT, padx=10, pady=10)

