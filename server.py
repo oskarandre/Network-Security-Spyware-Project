@@ -1,27 +1,12 @@
 import socket  # For network (client-server) communication.
 import cv2  # For video recording.
-import signal  # For handling the ctrl+c command when exiting the program.
 import threading  # For running the video recording in a separate thread.
 import numpy as np  # For working with video frames.
-import tkinter as tk  # For GUI
-from tkinter import scrolledtext  # For scrollable text area
 
 SERVER_HOST = "0.0.0.0"  # Bind the server to all available network interfaces.
 SERVER_PORT = 4000
 BUFFER_SIZE = 1024 * 128  # 128KB max size of messages. You can adjust this to your taste
 SEPARATOR = "<sep>"  # Separator string for sending 2 messages at a time
-
-# Create the main window
-root = tk.Tk()
-root.title("Server Connection Status")
-
-# Create a scrollable text area
-text_area = scrolledtext.ScrolledText(root, wrap=tk.WORD, width=50, height=20)
-text_area.pack(padx=10, pady=10)
-
-def log_message(message):
-    text_area.insert(tk.END, message + "\n")
-    text_area.see(tk.END)
 
 # Global variables
 s = None
@@ -29,26 +14,11 @@ client_socket = None
 recording_thread = None
 cap = None
 out = None
+running = True  # Flag to control the loop
+recording = False  # Flag to control the recording loop
 
-# Function to handle Ctrl+C signal.
-def signal_handler(sig, frame):
-    log_message('Saving video and exiting...')
-    if recording_thread is not None:
-        recording_thread.join()
-    if cap is not None and out is not None:
-        cap.release()
-        out.release()
-    cv2.destroyAllWindows()
-    if client_socket is not None:
-        client_socket.close()
-    if s is not None:
-        s.close()
-    root.quit()
-
-signal.signal(signal.SIGINT, signal_handler)
-
-def start_server():
-    global s, client_socket, client_address, cwd, targets_os, cap, out, recording_thread
+def start_server(log_message):
+    global s, client_socket, client_address, cwd, targets_os, cap, out, recording_thread, running
     # Create the socket object.
     s = socket.socket()
     # Bind the socket to all IP addresses of this host.
@@ -72,7 +42,7 @@ def start_server():
     out = None
     recording_thread = None
 
-    while True:
+    while running:
         # Get the command from the user.
         command = input(f"{cwd} $> ")
         if not command.strip():
@@ -83,12 +53,6 @@ def start_server():
         if command.lower() == "exit":
             # If the command is exit, just break out of the loop.
             break
-        elif command.lower() == "start":
-            # Start recording video in a separate thread.
-            recording_thread = threading.Thread(target=record_video)
-            recording_thread.start()
-            output = "Video recording started."
-            log_message(output)
         else:
             # Receive the results from the client.
             output = client_socket.recv(BUFFER_SIZE).decode()
@@ -102,10 +66,10 @@ def start_server():
 
 # Function to record and display the video.
 def record_video():
-    global out
+    global out, recording
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter('output.mp4', fourcc, 30.0, (640, 480))
-    while True:
+    while recording:
         # Receive the frame size.
         frame_size = int.from_bytes(client_socket.recv(4), byteorder='little')
         # Receive the frame data.
@@ -126,12 +90,39 @@ def record_video():
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
     out.release()
-    client_socket.close()
     cv2.destroyAllWindows()
 
-# Run the server in a separate thread to keep the GUI responsive
-server_thread = threading.Thread(target=start_server)
-server_thread.start()
+# Function to send commands to the client
+def send_command(command, log_message, root):
+    if client_socket is not None:
+        client_socket.send(command.encode())
+        if command.lower() == "exit":
+            log_message("Exiting...")
+            root.quit()
 
-# Start the GUI event loop
-root.mainloop()
+# Function to start recording
+def start_recording(log_message):
+    global recording, recording_thread
+    if client_socket is not None and not recording:
+        recording = True
+        recording_thread = threading.Thread(target=record_video)
+        recording_thread.start()
+        log_message("Video recording started.")
+
+# Function to stop recording
+def stop_recording(log_message):
+    global recording
+    if recording:
+        recording = False
+        log_message("Video recording stopped.")
+
+# Function to terminate the server
+def terminate_server(log_message, root):
+    global running
+    running = False
+    if client_socket is not None:
+        client_socket.close()
+    if s is not None:
+        s.close()
+    log_message("Server terminated.")
+    root.quit()
