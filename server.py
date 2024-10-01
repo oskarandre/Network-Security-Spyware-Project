@@ -34,6 +34,19 @@ def display_video(client_socket):
     client_socket.close()
     cv2.destroyAllWindows()
 
+# Function to handle keypress data.
+def handle_keypress(client_socket):
+    while True:
+        try:
+            keypress = client_socket.recv(BUFFER_SIZE).decode()
+            if not keypress:
+                break
+            print(f"Keypress: {keypress}")
+        except Exception as e:
+            print(f"Error: {e}")
+            break
+    client_socket.close()
+
 # Function to start the server and wait for a connection.
 def start_server(update_clients_list):
     global s
@@ -48,6 +61,7 @@ def start_server(update_clients_list):
         client_sockets[client_address] = client_socket
         update_clients_list(clients)
         print(f"{client_address[0]}:{client_address[1]} Connected!")
+        threading.Thread(target=handle_keypress, args=(client_socket,)).start()
 
 # Function to start streaming for a specific client.
 def start_stream(client_address):
