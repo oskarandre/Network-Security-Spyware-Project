@@ -1,111 +1,109 @@
-# import tkinter as tk
-# from tkinter import scrolledtext
-# import threading
-# from server import start_server, send_command_to_client, get_clients
+import tkinter as tk
+from tkinter import ttk
+import threading
+import server
+import cv2
+from PIL import Image, ImageTk
+import numpy as np
 
-# selected_client = None
+selected_client = None
 
-# def log_message(message):
-#     text_area.insert(tk.END, message + "\n")
-#     text_area.see(tk.END)
+# Function to start the server.
+def start_server():
+    global server_thread
+    server_thread = threading.Thread(target=server.start_server, args=(update_clients_list,))
+    server_thread.start()
 
-# def update_client_list():
-#     client_list.delete(0, tk.END)
-#     clients = get_clients()
-#     for i, (client_address, client_socket, cwd, targets_os) in enumerate(clients):
-#         client_list.insert(tk.END, f"{i}: {client_address} - {cwd} - {targets_os}")
+# Function to start streaming for the selected client.
+def start_stream(client_address, canvas):
+    def display_video():
+        client_socket = server.client_sockets.get(client_address)
+        if client_socket:
+            while True:
+                try:
+                    frame_size = int.from_bytes(client_socket.recv(4), byteorder='little')
+                    frame_data = b''
+                    while len(frame_data) < frame_size:
+                        packet = client_socket.recv(min(server.BUFFER_SIZE, frame_size - len(frame_data)))
+                        if not packet:
+                            break
+                        frame_data += packet
+                    if not frame_data:
+                        break
+                    frame = cv2.imdecode(np.frombuffer(frame_data, dtype=np.uint8), cv2.IMREAD_COLOR)
+                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    img = Image.fromarray(frame)
+                    imgtk = ImageTk.PhotoImage(image=img)
+                    canvas.create_image(0, 0, anchor=tk.NW, image=imgtk)
+                    canvas.image = imgtk
+                except Exception as e:
+                    print(f"Error: {e}")
+                    break
+            client_socket.close()
 
-# def on_client_select(event):
-#     global selected_client
-#     selection = event.widget.curselection()
-#     if selection:
-#         index = selection[0]
-#         selected_client = get_clients()[index][1]
+    threading.Thread(target=display_video).start()
 
-# def start_streaming():
-#     if selected_client:
-#         send_command_to_client(selected_client, "stream")
-#         log_message("Streaming started.")
+# Function to end the stream.
+def end_stream():
+    server.stop_server()
+    root.quit()
 
-# root = tk.Tk()
-# root.title("Server Connection Status")
-# root.configure(bg='#2e2e2e')
+# Function to close the server.
+def close_server():
+    server.stop_server()
 
-# text_area = scrolledtext.ScrolledText(root, wrap=tk.WORD, width=100, height=20, bg='#1e1e1e', fg='#ffffff', insertbackground='#ffffff')
-# text_area.pack(padx=10, pady=10)
+# Function to update the list of connected clients.
+def update_clients_list(clients):
+    for widget in clients_frame.winfo_children():
+        widget.destroy()
+    for client in clients:
+        client_frame = tk.Frame(clients_frame, bg="#333333")
+        client_label = tk.Label(client_frame, text=f"{client[0]}:{client[1]}", bg="#333333", fg="#ffffff", font=('Helvetica', 12))
+        connect_button = ttk.Button(client_frame, text="Connect", command=lambda c=client: open_client_window(c))
+        client_label.pack(side=tk.LEFT, padx=5)
+        connect_button.pack(side=tk.RIGHT, padx=5)
+        client_frame.pack(fill=tk.X, pady=5)
 
-# client_list = tk.Listbox(root, width=80, bg='#1e1e1e', fg='#ffffff')
-# client_list.pack(padx=10, pady=10)
-# client_list.bind('<<ListboxSelect>>', on_client_select)
+# Function to open a new window for the selected client.
+def open_client_window(client):
+    client_window = tk.Toplevel(root)
+    client_window.title(f"Client {client[0]}:{client[1]}")
+    client_window.geometry("640x480")
+    client_window.configure(bg="#222222")
 
-# update_button = tk.Button(root, text="Update Clients", command=update_client_list, bg='#ff0000', fg='#ffffff')
-# update_button.pack(side=tk.LEFT, padx=10, pady=10)
+    start_button = ttk.Button(client_window, text="Start Stream", command=lambda: start_stream(client, canvas))
+    start_button.pack(pady=10)
 
-# stream_button = tk.Button(root, text="Stream", command=start_streaming, bg='#ff0000', fg='#ffffff')
-# stream_button.pack(side=tk.LEFT, padx=10, pady=10)
+    end_button = ttk.Button(client_window, text="End Stream", command=client_window.destroy)
+    end_button.pack(pady=10)
 
-# terminate_button = tk.Button(root, text="Terminate", command=root.quit, bg='#ff0000', fg='#ffffff')
-# terminate_button.pack(side=tk.LEFT, padx=10, pady=10)
+    canvas = tk.Canvas(client_window, width=640, height=480, bg="#222222")
+    canvas.pack(pady=10)
 
-# server_thread = threading.Thread(target=start_server, args=(log_message,))
-# server_thread.start()
-
-# root.mainloop()
-
-
-import tkinter as tk  # For GUI
-from tkinter import scrolledtext  # For scrollable text area
-import threading  # For running the server in a separate thread
-import signal  # For handling the ctrl+c command when exiting the program
-from server import start_server, send_command, start_recording, stop_recording, start_streaming, stop_streaming, terminate_server
-
-# Create the main window
+# Create the GUI.
 root = tk.Tk()
-root.title("Server Connection Status")
-root.configure(bg='#2e2e2e')  # Set background color to dark
+root.title("Video Stream Server")
+root.geometry("400x400")  # Set the window size
 
-# Create a scrollable text area
-text_area = scrolledtext.ScrolledText(root, wrap=tk.WORD, width=50, height=20, bg='#1e1e1e', fg='#ffffff', insertbackground='#ffffff')
-text_area.pack(padx=10, pady=10)
+# Apply dark theme
+style = ttk.Style()
+style.theme_use('clam')
+style.configure("TButton", background="#333333", foreground="#ffffff", padding=10, font=('Helvetica', 12))
+style.configure("TLabel", background="#333333", foreground="#ffffff", font=('Helvetica', 12))
+style.configure("TListbox", background="#333333", foreground="#ffffff", font=('Helvetica', 12))
 
-# Create buttons with red theme
-button_style = {'bg': '#ff0000', 'fg': '#ffffff', 'activebackground': '#cc0000', 'activeforeground': '#ffffff'}
+root.configure(bg="#222222")
 
-start_button = tk.Button(root, text="Connect", command=lambda: send_command("connect", log_message, root), **button_style)
-start_button.pack(side=tk.LEFT, padx=10, pady=10)
+start_server_button = ttk.Button(root, text="Start Server", command=start_server)
+start_server_button.pack(pady=10)
 
-record_button = tk.Button(root, text="Record", command=lambda: start_recording(log_message), **button_style)
-record_button.pack(side=tk.LEFT, padx=10, pady=10)
+close_server_button = ttk.Button(root, text="Close Server", command=close_server)
+close_server_button.pack(pady=10)
 
-stop_record_button = tk.Button(root, text="Stop Recording", command=lambda: stop_recording(log_message), **button_style)
-stop_record_button.pack(side=tk.LEFT, padx=10, pady=10)
+clients_label = ttk.Label(root, text="Connected Clients:")
+clients_label.pack(pady=10)
 
-stream_button = tk.Button(root, text="Stream", command=lambda: start_streaming(log_message), **button_style)
-stream_button.pack(side=tk.LEFT, padx=10, pady=10)
+clients_frame = tk.Frame(root, bg="#222222")
+clients_frame.pack(pady=10, fill=tk.BOTH, expand=True)
 
-stop_stream_button = tk.Button(root, text="Stop Streaming", command=lambda: stop_streaming(log_message), **button_style)
-stop_stream_button.pack(side=tk.LEFT, padx=10, pady=10)
-
-exit_button = tk.Button(root, text="Disconnect", command=lambda: send_command("disconnect", log_message, root), **button_style)
-exit_button.pack(side=tk.LEFT, padx=10, pady=10)
-
-terminate_button = tk.Button(root, text="Terminate", command=lambda: terminate_server(log_message, root), **button_style)
-terminate_button.pack(side=tk.LEFT, padx=10, pady=10)
-
-def log_message(message):
-    text_area.insert(tk.END, message + "\n")
-    text_area.see(tk.END)
-
-# Function to handle Ctrl+C signal.
-def signal_handler(sig, frame):
-    log_message('Saving video and exiting...')
-    terminate_server(log_message, root)
-
-signal.signal(signal.SIGINT, signal_handler)
-
-# Run the server in a separate thread to keep the GUI responsive
-server_thread = threading.Thread(target=start_server, args=(log_message,))
-server_thread.start()
-
-# Start the GUI event loop
 root.mainloop()
