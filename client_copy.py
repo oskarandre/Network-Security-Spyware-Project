@@ -62,6 +62,10 @@ class Screenshot:
             # Send the actual screenshot data
             s.sendall(screenshot)
             print("Screenshot sent")
+        #turn off the webcam
+        self.screenshot.release()
+        cv2.destroyAllWindows()
+
 
 
 # Main program execution
