@@ -70,7 +70,7 @@ def open_client_window(client):
         last_keypress_time = time.time()
         while True:
             try:
-                keypress = server.keypress_queues[client].get(timeout=5)
+                keypress = server.message_queues[client].get(timeout=5)
                 text_widget.insert(tk.END, keypress)
                 text_widget.see(tk.END)
                 last_keypress_time = time.time()
@@ -81,17 +81,6 @@ def open_client_window(client):
                     last_keypress_time = time.time()
 
     threading.Thread(target=update_keypresses, daemon=True).start()
-
-    def update_messages():
-        while True:
-            try:
-                message = server.message_queues[client].get(timeout=5)
-                text_widget.insert(tk.END, f"Received message: {message}\n")
-                text_widget.see(tk.END)
-            except queue.Empty:
-                pass
-
-    threading.Thread(target=update_messages, daemon=True).start()
 
     # Button to show the screenshot in a new window
     show_image_button = ttk.Button(client_window, text="Show Screenshot", command=lambda: display_screenshot(client))
