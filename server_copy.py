@@ -1,89 +1,81 @@
-import socket  # For network (client-server) communication.
-import cv2  # For video recording.
-import threading  # For running the video recording in a separate thread.
-import numpy as np  # For working with video frames.
+import socket
+import threading
+import queue
+import os
 
-SERVER_HOST = "0.0.0.0"  # Bind the server to all available network interfaces.
+SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 4000
-BUFFER_SIZE = 1024 * 128  # 128KB max size of messages. You can adjust this to your taste
+BUFFER_SIZE = 1024 * 128  # Buffer size for receiving data
+SEPARATOR = "<sep>"
 
-# Global variables
-s = None
-client_socket = None
-streaming_thread = None
-running = True  # Flag to control the loop
-streaming = False  # Flag to control the streaming loop
+clients = []
+client_sockets = {}
+keypress_queues = {}
 
-def start_server(log_message):
-    global s, client_socket, client_address, streaming_thread, running
-    # Create the socket object.
-    s = socket.socket()
-    # Bind the socket to all IP addresses of this host.
-    s.bind((SERVER_HOST, SERVER_PORT))
-    # Make the PORT reusable
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    # Set the maximum number of queued connections to 5.
-    s.listen(5)
-    log_message(f"Listening as {SERVER_HOST} on port {SERVER_PORT} ...")
-    # Accept any connections attempted.
-    client_socket, client_address = s.accept()
-    log_message(f"{client_address[0]}:{client_address[1]} Connected!")
 
-    while running:
-        pass  # Keep the server running
+# Function to handle client messages, including image data
+def handle_client(client_socket, client_address):
+    client_ip = client_address[0]
+    print(f"Connection from {client_ip} established!")
 
-    # Close the connection to the client and server.
-    if streaming_thread is not None:
-        streaming_thread.join()
+    while True:
+        try:
+            # Wait to receive the first message from the client
+            data = client_socket.recv(BUFFER_SIZE).decode()
+
+            if data == "image":
+                # Prepare to receive an image
+                client_socket.send("Ready for image".encode())  # Send acknowledgment
+                image_size = int(client_socket.recv(1024).decode())  # Get the image size
+                client_socket.send("Size received".encode())  # Acknowledge size
+
+                # Receive the image in chunks
+                image_data = b""
+                while len(image_data) < image_size:
+                    packet = client_socket.recv(BUFFER_SIZE)
+                    if not packet:  # If the connection is closed
+                        break
+                    image_data += packet
+
+                # Save the image to a file
+                image_filename = f"{client_ip}_screenshot.jpg"
+                with open(image_filename, "wb") as image_file:
+                    image_file.write(image_data)
+
+                print(f"Image received and saved as {image_filename}")
+                client_socket.send("Image received".encode())  # Notify client
+            else:
+                print(f"Received message from {client_ip}: {data}")
+        except Exception as e:
+            print(f"Error handling client {client_ip}: {e}")
+            break
+
     client_socket.close()
-    s.close()
 
-# Function to stream live video.
-def stream_video():
-    global streaming
-    while streaming:
-        # Receive the frame size.
-        frame_size = int.from_bytes(client_socket.recv(4), byteorder='little')
-        # Receive the frame data.
-        frame_data = b''
-        while len(frame_data) < frame_size:
-            packet = client_socket.recv(min(BUFFER_SIZE, frame_size - len(frame_data)))
-            if not packet:
-                break
-            frame_data += packet
-        if not frame_data:
-            break
-        # Decode the frame.
-        frame = cv2.imdecode(np.frombuffer(frame_data, dtype=np.uint8), cv2.IMREAD_COLOR)
-        # Display the frame.
-        cv2.imshow('Live Camera Feed', frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-    cv2.destroyAllWindows()
 
-# Function to start streaming
-def start_streaming(log_message):
-    global streaming, streaming_thread
-    if client_socket is not None and not streaming:
-        streaming = True
-        streaming_thread = threading.Thread(target=stream_video)
-        streaming_thread.start()
-        log_message("Live video streaming started.")
+# Function to start the server and handle incoming connections
+def start_server(update_clients_list):
+    global s
+    s = socket.socket()
+    s.bind((SERVER_HOST, SERVER_PORT))
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.listen(5)
+    print(f"Listening as {SERVER_HOST} on port {SERVER_PORT} ...")
 
-# Function to stop streaming
-def stop_streaming(log_message):
-    global streaming
-    if streaming:
-        streaming = False
-        log_message("Live video streaming stopped.")
+    while True:
+        client_socket, client_address = s.accept()
+        clients.append(client_address)
+        client_sockets[client_address] = client_socket
+        update_clients_list(clients)
+        print(f"{client_address[0]}:{client_address[1]} Connected!")
+        threading.Thread(target=handle_client, args=(client_socket, client_address)).start()
 
-# Function to terminate the server
-def terminate_server(log_message, root):
-    global running
-    running = False
-    if client_socket is not None:
-        client_socket.close()
-    if s is not None:
+
+# Function to stop the server and close all client connections
+def stop_server():
+    try:
+        for client in clients:
+            client_sockets[client].close()
         s.close()
-    log_message("Server terminated.")
-    root.quit()
+    except Exception as e:
+        print(f"Error stopping server: {e}")

