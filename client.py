@@ -6,14 +6,40 @@ from threading import Timer
 from datetime import datetime
 
 #SERVER_HOST = "192.168.0.8" 
-SERVER_HOST = "172.20.10.3" 
+#SERVER_HOST = "172.20.10.3" 
+
+SERVER_HOST = ""
+
+def get_ip_address():
+    hostname = socket.gethostname()
+    ip_address = socket.gethostbyname(hostname)
+    return ip_address
+
+
+print(f"Client IP Address: {get_ip_address()}")
 
 SERVER_PORT = 4000
 BUFFER_SIZE = 1024 * 128 
 
 s = socket.socket()
-s.connect((SERVER_HOST, SERVER_PORT))
+#s.connect((SERVER_HOST, SERVER_PORT))
 
+connected = False
+client_ip = get_ip_address()
+ip_base = '.'.join(client_ip.split('.')[:-1])
+
+for i in range(1, 256):
+    try:
+        s.connect((f"{ip_base}.{i}", SERVER_PORT))
+        print(f"Connected to {ip_base}.{i}")
+        connected = True
+        break
+    except socket.error:
+        print(f"Unable to connect to {ip_base}.{i}")
+        continue
+
+if not connected:
+    print("Unable to connect to any IP address in the range.")
 
 
 class Command:
