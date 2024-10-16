@@ -5,7 +5,9 @@ import keyboard
 from threading import Timer
 from datetime import datetime
 
-SERVER_HOST = "192.168.0.8" 
+#SERVER_HOST = "192.168.0.8" 
+SERVER_HOST = "172.20.10.3" 
+
 SERVER_PORT = 4000
 BUFFER_SIZE = 1024 * 128 
 
