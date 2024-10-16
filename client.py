@@ -22,7 +22,6 @@ SERVER_PORT = 4000
 BUFFER_SIZE = 1024 * 128 
 
 s = socket.socket()
-#s.connect((SERVER_HOST, SERVER_PORT))
 
 connected = False
 client_ip = get_ip_address()
